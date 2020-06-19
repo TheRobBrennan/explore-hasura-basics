@@ -453,6 +453,34 @@ Great! Now your Hasura GraphQL Engine is secured using Auth0.
 
 ## Sync Users with Rules
 
+Auth0 has rules that can be set up to be called on every login request. We need to set up a rule in Auth0 which allows the users of Auth0 to be in sync with the users in our database. The following code snippet allows us to do the same. Again using the Rules feature, create a new blank rule `upsert-user` and paste in the following code snippet:
+
+```js
+function (user, context, callback) {
+  const userId = user.user_id;
+  const nickname = user.nickname;
+
+  // Modify with your Hasura admin secret and URL to the application
+  const admin_secret = "demo";
+  const url = "https://rb-learn-hasura-back-end.herokuapp.com/v1/graphql";
+
+  request.post({
+      headers: {'content-type' : 'application/json', 'x-hasura-admin-secret': admin_secret},
+      url:   url,
+      body:    `{\"query\":\"mutation($userId: String!, $nickname: String) {\\n          insert_users(\\n            objects: [{ id: $userId, name: $nickname }]\\n            on_conflict: {\\n              constraint: users_pkey\\n              update_columns: [last_seen, name]\\n            }\\n          ) {\\n            affected_rows\\n          }\\n        }\",\"variables\":{\"userId\":\"${userId}\",\"nickname\":\"${nickname}\"}}`
+  }, function(error, response, body){
+       console.log(body);
+       callback(null, user, context);
+  });
+}
+```
+
+Note: Modify `x-hasura-admin-secret` and `url` parameters appropriately according to your app. Here we are making a simple request to make a mutation into users table.
+
+That’s it! This rule will now be triggered on every successful signup or login, and we insert or update the user data into our database using a Hasura GraphQL mutation.
+
+The above request performs a mutation on the users table with the id and name values.
+
 ## Test with Auth0 Token
 
 # Custom Business Logic
