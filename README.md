@@ -239,3 +239,64 @@ query {
   }
 }
 ```
+
+# Data Transformations
+
+Postgres allows you to perform data transformations using:
+
+- Views
+- SQL Functions
+
+In this example, we are going to make use of `Views`. This view is required by the app to find the users who have logged in and are online in the last 30 seconds.
+
+## Create View
+
+The SQL statement for creating this view looks like this:
+
+```sql
+CREATE OR REPLACE VIEW "public"."online_users" AS
+ SELECT users.id,
+    users.last_seen
+   FROM users
+  WHERE (users.last_seen >= (now() - '00:00:30'::interval));
+```
+
+Head to Console -> Data -> SQL page.
+
+## Subscription to Online Users
+
+Now let's test by making a subscription query to the `online_users` view:
+
+```gql
+subscription {
+  online_users {
+    id
+    last_seen
+  }
+}
+```
+
+In another tab, update an existing user's `last_seen` value to see the subscription response getting updated. Enter the value as `now()` for the `last_seen` column and click on `Save`.
+
+## Create relationship to user
+
+Now that the view has been created, we need a way to be able to fetch user information based on the `id` column of the view. Let's create a manual relationship from the view `online_users` to the table users using the `id` column of the view.
+
+Head to Console -> Data -> online_users -> Relationships page.
+
+Add new relationship by choosing the relationship type to be `Object Relationship`. Enter the relationship name as `user`. Select the configuration for current column as `id` and the remote table would be `users` and the remote column would be `id` again.
+
+Let's explore the GraphQL APIs for the relationship created:
+
+```gql
+query {
+  online_users {
+    id
+    last_seen
+    user {
+      id
+      name
+    }
+  }
+}
+```
