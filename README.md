@@ -374,3 +374,15 @@ In the Row update permission, under custom check, choose the following condition
 Under column update permissions, select `last_seen` column, as this will be updated from the frontend app.
 
 Click on `Save Permissions` and you are done with access control rules for `users` table.
+
+## Setup online_users view permissions
+
+Head over to the Permissions tab under `online_users` view to add relevant permissions.
+
+### Select permission
+
+Here in this view, we only want the user to be able to select data and not do any mutations. Hence we don't define any permission for insert, update or delete.
+
+For Row select permission, choose `Without any checks` and under Column select permission, choose both the columns `id` and `last_seen`.
+
+Click on `Save Permissions`. You have completed all access control rules required for the realtime todo app.
