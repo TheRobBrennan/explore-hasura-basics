@@ -226,3 +226,20 @@ Head over to `Relationships` tab under `todos` table and you should see a sugges
 Click on `Add` in the suggested object relationship.
 
 Enter the relationship name as `user` (already pre-filled) and click on `Save`.
+
+#### Try out Relationship Queries
+
+Let's explore the GraphQL APIs for the relationship created:
+
+```gql
+query {
+  todos {
+    id
+    title
+    user {
+      id
+      name
+    }
+  }
+}
+```
