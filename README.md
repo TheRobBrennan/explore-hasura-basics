@@ -386,3 +386,29 @@ Here in this view, we only want the user to be able to select data and not do an
 For Row select permission, choose `Without any checks` and under Column select permission, choose both the columns `id` and `last_seen`.
 
 Click on `Save Permissions`. You have completed all access control rules required for the realtime todo app.
+
+# Authentication
+
+## Create Auth0 App
+
+## Rules for Custom JWT Claims
+
+## Connect Hasura with Auth0
+
+## Sync Users with Rules
+
+## Test with Auth0 Token
+
+# Custom Business Logic
+
+## Creating Actions
+
+## Write custom resolvers
+
+## Add Remote Schema
+
+## Write event webhook
+
+## Create event trigger
+
+# What's next?
