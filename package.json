@@ -1,0 +1,19 @@
+{
+  "name": "explore-hasura-basics",
+  "version": "0.0.0",
+  "description": "Based on https://hasura.io/learn/graphql/hasura/introduction/",
+  "keywords": [
+    "graphql,",
+    "hasura"
+  ],
+  "author": "Rob Brennan <rob@therobbrennan.com> (therobbrennan.com)",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheRobBrennan/explore-hasura-basics.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TheRobBrennan/explore-hasura-basics/issues"
+  },
+  "homepage": "https://github.com/TheRobBrennan/explore-hasura-basics#readme"
+}
