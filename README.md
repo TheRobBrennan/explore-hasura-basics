@@ -216,3 +216,13 @@ Select the `Reference table` as `users`
 - We are enforcing that the `user_id` column of `todos` table must be one of the values of `id` in `users` table.
 
 Click on `Save` to create the foreign key.
+
+#### Create Relationship
+
+Now that the foreign key constraint is created, Hasura Console automatically suggests relationships based on that.
+
+Head over to `Relationships` tab under `todos` table and you should see a suggested object relationship.
+
+Click on `Add` in the suggested object relationship.
+
+Enter the relationship name as `user` (already pre-filled) and click on `Save`.
