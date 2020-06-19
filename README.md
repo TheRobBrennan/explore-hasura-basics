@@ -509,7 +509,13 @@ Extract the `id_token` value from this URL. This is the JWT:
 ```js
 // Paste the JWT into the jwt.io debugger
 eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Inh0Vl9kbE1HZ0VydVZxT2RjV3NFVSJ9.eyJodHRwczovL2hhc3VyYS5pby9qd3QvY2xhaW1zIjp7IngtaGFzdXJhLWRlZmF1bHQtcm9sZSI6InVzZXIiLCJ4LWhhc3VyYS1hbGxvd2VkLXJvbGVzIjpbInVzZXIiXSwieC1oYXN1cmEtdXNlci1pZCI6Imdvb2dsZS1vYXV0aDJ8MTE2MDU4NjY4MzAyMjkwODYxODEwIn0sImdpdmVuX25hbWUiOiJSb2IiLCJmYW1pbHlfbmFtZSI6IkJyZW5uYW4iLCJuaWNrbmFtZSI6InJvYiIsIm5hbWUiOiJSb2IgQnJlbm5hbiIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS0vQU9oMTRHakUwdUR2eTFMRWlVS3FQTWVvTzdjYXVWckJRMXl0VjQ3aUpGUWVvT1EiLCJnZW5kZXIiOiJtYWxlIiwibG9jYWxlIjoiZW4iLCJ1cGRhdGVkX2F0IjoiMjAyMC0wNi0xOVQyMzoyOTowOC42NjVaIiwiaXNzIjoiaHR0cHM6Ly9kZW1vLWV4cGxvcmUtaGFzdXJhLWJhc2ljcy51cy5hdXRoMC5jb20vIiwic3ViIjoiZ29vZ2xlLW9hdXRoMnwxMTYwNTg2NjgzMDIyOTA4NjE4MTAiLCJhdWQiOiI4ZkNRRVNQQjU3QTQ4UXZUMExNNWVkY2F4YnE3SnJoRSIsImlhdCI6MTU5MjYwOTM2MywiZXhwIjoxNTkyNjQ1MzYzLCJhdF9oYXNoIjoidWJwX0c4UUJqRmNXazkwaW9DZms0QSIsIm5vbmNlIjoibnpvQXNKYmhMd3ZsMF82dEpKWXBod0M5Y0JKTU4tWFEifQ.BhR2FViuZXufd7euZuuWsB8gKlJqNRAPckEWLh3a0biQZ7X57a3op4fQ5dKJtceBWhGFZRMeHBFtPue6ZZ--WZYKnW2pC7Rzr3A0jXa1pYFiXaDWJ6tTOzXpY2NWS3CjIGZzCeJhbmlhrRhkuSayBkylK2rHtmPcgal_dGbQng1vYGJKXi-qu89EzkEJgrebMaiBolnYBGI40orP4qjMYhrfrNLdG8X8RUDDSJGCQpeYWWAH8hvSV8SDAO5s3JkA2LgV7P1pF24X8FMeeejhO7z1jAO_vfV0Rog8r7v4PcwXCY0B5p7xEQqdSkseWwtCZriAxpTjuDZ76ExsmTAjgw
+```
 
+Test this JWT in [jwt.io](https://jwt.io/) debugger.
+
+The debugger should give you the decoded payload that contains the JWT claims that have been configured for Hasura under the key `https://hasura.io/jwt/claims`. Inside this object, the role information will be available under `x-hasura-default-role` and `x-hasura-allowed-roles` keys; user-id information will be available under `x-hasura-user-id` key.
+
+```js
 // Decoded - Header (Algorithm and Token Type)
 {
   "alg": "RS256",
@@ -543,10 +549,6 @@ eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Inh0Vl9kbE1HZ0VydVZxT2RjV3NFVSJ9.eyJ
   "nonce": "nzoAsJbhLwvl0_6tJJYphwC9cBJMN-XQ"
 }
 ```
-
-Test this JWT in [jwt.io](https://jwt.io/) debugger.
-
-The debugger should give you the decoded payload that contains the JWT claims that have been configured for Hasura under the key https://hasura.io/jwt/claims. Now inside this object, the role information will be available under `x-hasura-default-role` and `x-hasura-allowed-roles` keys; user-id information will be available under `x-hasura-user-id` key.
 
 # Custom Business Logic
 
