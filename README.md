@@ -483,6 +483,71 @@ The above request performs a mutation on the users table with the id and name va
 
 ## Test with Auth0 Token
 
+Hasura is configured to be used with Auth0. Now let's test this setup by getting the token from Auth0 and making GraphQL queries with the Authorization headers to see if the permissions are applied.
+
+To get a JWT token for testing,
+
+Copy this URL - https://auth0-domain.auth0.com/login?client=client_id&protocol=oauth2&response_type=token%20id_token&redirect_uri=callback_uri&scope=openid%20profile and update the URL as given below:
+
+- Replace auth0-domain with the one we created in the previous steps.
+- Replace client_id with Auth0 application's client_id.
+- Replace callback_uri with http://localhost:3000/callback for testing. You don't need anything to run on localhost:3000 for this to work.
+- Make sure http://localhost:3000/callback has been added under Allowed Callback URLs in the Auth0 app settings.
+
+For my demo project, the URL will be updated to be https://demo-explore-hasura-basics.us.auth0.com/login?client=8fCQESPB57A48QvT0LM5edcaxbq7JrhE&protocol=oauth2&response_type=token%20id_token&redirect_uri=http://localhost:3000/callback&scope=openid%20profile
+
+Now try entering the updated URL in the browser. It should take you to the Auth0 login screen.
+
+After successfully logging in, you will be redirected to something like:
+
+http://localhost:3000/callback#access_token=CkxPdM_gMZz3ghILpVyRd4qCoJ_T1hIZ&scope=openid%20profile&expires_in=7200&token_type=Bearer&state=eBssl0ntJvATx98ha07BhZsBzcAkRSdp&id_token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Inh0Vl9kbE1HZ0VydVZxT2RjV3NFVSJ9.eyJodHRwczovL2hhc3VyYS5pby9qd3QvY2xhaW1zIjp7IngtaGFzdXJhLWRlZmF1bHQtcm9sZSI6InVzZXIiLCJ4LWhhc3VyYS1hbGxvd2VkLXJvbGVzIjpbInVzZXIiXSwieC1oYXN1cmEtdXNlci1pZCI6Imdvb2dsZS1vYXV0aDJ8MTE2MDU4NjY4MzAyMjkwODYxODEwIn0sImdpdmVuX25hbWUiOiJSb2IiLCJmYW1pbHlfbmFtZSI6IkJyZW5uYW4iLCJuaWNrbmFtZSI6InJvYiIsIm5hbWUiOiJSb2IgQnJlbm5hbiIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS0vQU9oMTRHakUwdUR2eTFMRWlVS3FQTWVvTzdjYXVWckJRMXl0VjQ3aUpGUWVvT1EiLCJnZW5kZXIiOiJtYWxlIiwibG9jYWxlIjoiZW4iLCJ1cGRhdGVkX2F0IjoiMjAyMC0wNi0xOVQyMzoyOTowOC42NjVaIiwiaXNzIjoiaHR0cHM6Ly9kZW1vLWV4cGxvcmUtaGFzdXJhLWJhc2ljcy51cy5hdXRoMC5jb20vIiwic3ViIjoiZ29vZ2xlLW9hdXRoMnwxMTYwNTg2NjgzMDIyOTA4NjE4MTAiLCJhdWQiOiI4ZkNRRVNQQjU3QTQ4UXZUMExNNWVkY2F4YnE3SnJoRSIsImlhdCI6MTU5MjYwOTM2MywiZXhwIjoxNTkyNjQ1MzYzLCJhdF9oYXNoIjoidWJwX0c4UUJqRmNXazkwaW9DZms0QSIsIm5vbmNlIjoibnpvQXNKYmhMd3ZsMF82dEpKWXBod0M5Y0JKTU4tWFEifQ.BhR2FViuZXufd7euZuuWsB8gKlJqNRAPckEWLh3a0biQZ7X57a3op4fQ5dKJtceBWhGFZRMeHBFtPue6ZZ--WZYKnW2pC7Rzr3A0jXa1pYFiXaDWJ6tTOzXpY2NWS3CjIGZzCeJhbmlhrRhkuSayBkylK2rHtmPcgal_dGbQng1vYGJKXi-qu89EzkEJgrebMaiBolnYBGI40orP4qjMYhrfrNLdG8X8RUDDSJGCQpeYWWAH8hvSV8SDAO5s3JkA2LgV7P1pF24X8FMeeejhO7z1jAO_vfV0Rog8r7v4PcwXCY0B5p7xEQqdSkseWwtCZriAxpTjuDZ76ExsmTAjgw
+
+This page will be a 404, unless you are running some other server on that port locally. We care only about the URL parameters.
+
+Extract the `id_token` value from this URL. This is the JWT:
+
+```js
+// Paste the JWT into the jwt.io debugger
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Inh0Vl9kbE1HZ0VydVZxT2RjV3NFVSJ9.eyJodHRwczovL2hhc3VyYS5pby9qd3QvY2xhaW1zIjp7IngtaGFzdXJhLWRlZmF1bHQtcm9sZSI6InVzZXIiLCJ4LWhhc3VyYS1hbGxvd2VkLXJvbGVzIjpbInVzZXIiXSwieC1oYXN1cmEtdXNlci1pZCI6Imdvb2dsZS1vYXV0aDJ8MTE2MDU4NjY4MzAyMjkwODYxODEwIn0sImdpdmVuX25hbWUiOiJSb2IiLCJmYW1pbHlfbmFtZSI6IkJyZW5uYW4iLCJuaWNrbmFtZSI6InJvYiIsIm5hbWUiOiJSb2IgQnJlbm5hbiIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS0vQU9oMTRHakUwdUR2eTFMRWlVS3FQTWVvTzdjYXVWckJRMXl0VjQ3aUpGUWVvT1EiLCJnZW5kZXIiOiJtYWxlIiwibG9jYWxlIjoiZW4iLCJ1cGRhdGVkX2F0IjoiMjAyMC0wNi0xOVQyMzoyOTowOC42NjVaIiwiaXNzIjoiaHR0cHM6Ly9kZW1vLWV4cGxvcmUtaGFzdXJhLWJhc2ljcy51cy5hdXRoMC5jb20vIiwic3ViIjoiZ29vZ2xlLW9hdXRoMnwxMTYwNTg2NjgzMDIyOTA4NjE4MTAiLCJhdWQiOiI4ZkNRRVNQQjU3QTQ4UXZUMExNNWVkY2F4YnE3SnJoRSIsImlhdCI6MTU5MjYwOTM2MywiZXhwIjoxNTkyNjQ1MzYzLCJhdF9oYXNoIjoidWJwX0c4UUJqRmNXazkwaW9DZms0QSIsIm5vbmNlIjoibnpvQXNKYmhMd3ZsMF82dEpKWXBod0M5Y0JKTU4tWFEifQ.BhR2FViuZXufd7euZuuWsB8gKlJqNRAPckEWLh3a0biQZ7X57a3op4fQ5dKJtceBWhGFZRMeHBFtPue6ZZ--WZYKnW2pC7Rzr3A0jXa1pYFiXaDWJ6tTOzXpY2NWS3CjIGZzCeJhbmlhrRhkuSayBkylK2rHtmPcgal_dGbQng1vYGJKXi-qu89EzkEJgrebMaiBolnYBGI40orP4qjMYhrfrNLdG8X8RUDDSJGCQpeYWWAH8hvSV8SDAO5s3JkA2LgV7P1pF24X8FMeeejhO7z1jAO_vfV0Rog8r7v4PcwXCY0B5p7xEQqdSkseWwtCZriAxpTjuDZ76ExsmTAjgw
+
+// Decoded - Header (Algorithm and Token Type)
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "xtV_dlMGgEruVqOdcWsEU"
+}
+
+// Decoded - Payload
+{
+  "https://hasura.io/jwt/claims": {
+    "x-hasura-default-role": "user",
+    "x-hasura-allowed-roles": [
+      "user"
+    ],
+    "x-hasura-user-id": "google-oauth2|116058668302290861810"
+  },
+  "given_name": "Rob",
+  "family_name": "Brennan",
+  "nickname": "rob",
+  "name": "Rob Brennan",
+  "picture": "https://lh3.googleusercontent.com/a-/AOh14GjE0uDvy1LEiUKqPMeoO7cauVrBQ1ytV47iJFQeoOQ",
+  "gender": "male",
+  "locale": "en",
+  "updated_at": "2020-06-19T23:29:08.665Z",
+  "iss": "https://demo-explore-hasura-basics.us.auth0.com/",
+  "sub": "google-oauth2|116058668302290861810",
+  "aud": "8fCQESPB57A48QvT0LM5edcaxbq7JrhE",
+  "iat": 1592609363,
+  "exp": 1592645363,
+  "at_hash": "ubp_G8QBjFcWk90ioCfk4A",
+  "nonce": "nzoAsJbhLwvl0_6tJJYphwC9cBJMN-XQ"
+}
+```
+
+Test this JWT in [jwt.io](https://jwt.io/) debugger.
+
+The debugger should give you the decoded payload that contains the JWT claims that have been configured for Hasura under the key https://hasura.io/jwt/claims. Now inside this object, the role information will be available under `x-hasura-default-role` and `x-hasura-allowed-roles` keys; user-id information will be available under `x-hasura-user-id` key.
+
 # Custom Business Logic
 
 ## Creating Actions
