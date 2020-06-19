@@ -197,3 +197,22 @@ Relationships can be captured by foreign key constraints. Foreign key constraint
 Though the constraints are optional, it is recommended to enforce these constraints for data consistency.
 
 The above queries won't work yet because we haven't defined the relationships yet. But this gives an idea of how nested queries work.
+
+#### Create Foreign Key
+
+In the `todos` table, the value of `user_id` column must be ideally present in the `id` column of `users` table. Otherwise it would result in inconsistent data.
+
+Postgres allows you to define foreign key constraint to enforce this condition.
+
+Let's define one for the `user_id` column in `todos` table.
+
+Head over to Console -> Data -> todos -> Modify page.
+
+Scroll down to `Foreign Keys` section at the bottom and click on `Add`.
+
+Select the `Reference table` as `users`
+
+- Choose the `From` column as `user_id` and `To` column as `id`
+- We are enforcing that the `user_id` column of `todos` table must be one of the values of `id` in `users` table.
+
+Click on `Save` to create the foreign key.
