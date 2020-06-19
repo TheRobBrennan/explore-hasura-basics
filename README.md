@@ -144,3 +144,56 @@ subscription {
 Notice how the `Play` button changes to a `Stop` button. This subscription is actively listening for changes.
 
 Open the `Data` link in another tab. Manually add data to our database; then visit our current tab to see changes as they occur.
+
+### Relationships
+
+Relationships enable you to make nested object queries if the tables/views in your database are connected.
+
+GraphQL schema relationships can be either of
+
+- object relationships (one-to-one)
+- array relationships (one-to-many)
+
+#### Object relationships
+
+Let's say you want to query todos and more information about the user who created it. This is achievable using nested queries if a relationship exists between the two. This is a one-to-one query and hence called an object relationship.
+
+An example of such a nested query looks like this:
+
+```gql
+query {
+  todos {
+    id
+    title
+    user {
+      id
+      name
+    }
+  }
+}
+```
+
+#### Array relationships
+
+Let's look at an example query for array relationships:
+
+```gql
+query {
+  users {
+    id
+    name
+    todos {
+      id
+      title
+    }
+  }
+}
+```
+
+In this query, you are able to fetch users and for each user, you are fetching the todos (multiple) written by that user. Since a user can have multiple todos, this would be an array relationship.
+
+Relationships can be captured by foreign key constraints. Foreign key constraints ensure that there are no dangling data. Hasura Console automatically suggests relationships based on these constraints.
+
+Though the constraints are optional, it is recommended to enforce these constraints for data consistency.
+
+The above queries won't work yet because we haven't defined the relationships yet. But this gives an idea of how nested queries work.
