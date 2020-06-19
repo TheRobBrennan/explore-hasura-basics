@@ -300,3 +300,55 @@ query {
   }
 }
 ```
+
+# Authorization
+
+In this part of the tutorial, we are going to define role based access control rules for each of the models that we created.
+
+Access control rules help in restricting querying on a table based on certain conditions.
+
+In this realtime todo app use-case, we need to restrict all querying only for logged in users. Also certain columns in tables do not need to be exposed to the user.
+
+The aim of the app is to allow users to manage their own todos only but should be able to view all the public todos.
+
+We will define all of these based on role based access control rules in the subsequent steps.
+
+## Setup todos table permissions
+
+Head over to the Permissions tab under todos table to add relevant permissions.
+
+### Insert permission
+
+- In the enter new role textbox, type in “user”
+- Click on edit (pencil) icon for “insert” permissions. This would open up a section below which lets you configure custom checks and allow columns.
+- In the custom check, choose the following condition - `{"user_id":{"_eq":"X-Hasura-User-Id"}}`
+
+Now under column insert permissions, select the `title` and `is_public` columns.
+
+Finally under column presets, select `user_id` from `from session variable` mapping to `X-HASURA-USER-ID`.
+
+Note: Session variables are key-value pairs returned from the authentication service for each request. When a user makes a request, the session token maps to a `USER-ID`. This `USER-ID` can be used in a permission to show that inserts into a table are only allowed if the `user_id` column has a value equal to that of `USER-ID`, the session variable.
+
+Click on `Save Permissions`.
+
+### Select permission
+
+Now click on edit icon for "select" permissions. In the custom check, choose the following condition - `{"_or":[{"is_public":{"_eq":true}},{"user_id":{"_eq":"X-Hasura-User-Id"}}]}`
+
+Under column select permissions, select all the columns.
+
+Click on `Save Permissions`
+
+### Update permission
+
+Now click on edit icon for "update" permissions. In the custom check, choose `With same custom checks as insert`.
+
+And under column update permissions, select the `is_completed` column.
+
+Click on `Save Permissions` once done.
+
+### Delete permission
+
+Finally for delete permission, under custom check, choose `With same custom checks as insert, update`.
+
+Click on `Save Permissions` and you are done with access control for `todos` table.
