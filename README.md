@@ -432,6 +432,25 @@ function (user, context, callback) {
 
 ## Connect Hasura with Auth0
 
+In this part, you will learn how to connect Hasura with the Auth0 application that you just created in the previous step.
+
+We need to configure Hasura to use the Auth0 public keys. An easier way to generate the config for JWT is:
+
+- Click on the following link - [https://hasura.io/jwt-config](https://hasura.io/jwt-config)
+- For `Select Provider` choose `Auth0`
+- Enter `Auth0 Domain Name` (e.g. `demo-explore-hasura-basics.us.auth0.com`)
+- Click `Generate Config`
+
+The generated configuration can be used as the value for environment variable `HASURA_GRAPHQL_JWT_SECRET`.
+
+Since we have deployed Hasura GraphQL Engine on Heroku, let's head to Heroku dashboard to configure the admin secret and JWT secret.
+
+Open the "Settings" page for your Heroku app, add a new Config Var called `HASURA_GRAPHQL_JWT_SECRET`, and copy and paste the generate JWT configuration into the value box.
+
+Next, create a new Config Var called `HASURA_GRAPHQL_ADMIN_SECRET` and enter a secret key to protect the GraphQL endpoint. (Imagine this as the password to your GraphQL server).
+
+Great! Now your Hasura GraphQL Engine is secured using Auth0.
+
 ## Sync Users with Rules
 
 ## Test with Auth0 Token
