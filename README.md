@@ -386,3 +386,180 @@ Here in this view, we only want the user to be able to select data and not do an
 For Row select permission, choose `Without any checks` and under Column select permission, choose both the columns `id` and `last_seen`.
 
 Click on `Save Permissions`. You have completed all access control rules required for the realtime todo app.
+
+# Authentication
+
+In this part, we will look at how to integrate an Authentication provider.
+
+The realtime todo app needs to be protected by a login interface. We are going to use [Auth0](https://auth0.com/) as the identity/authentication provider for this example.
+
+Note: [Auth0](https://auth0.com/) has a free plan for up to 7000 active users.
+
+The basic idea is that, whenever a user authenticates with [Auth0](https://auth0.com/), the client app receives a token which can be sent in the `Authorization` headers of all GraphQL requests. Hasura GraphQL Engine would verify if the token is valid and allow the user to perform appropriate queries.
+
+Let's get started!
+
+## Create Auth0 App
+
+- Navigate to the [Auth0 Dashboard](https://manage.auth0.com/)
+- Signup / Login to the account
+- Create a new tenant.
+- Click on the `Applications` menu option on the left and then click the `+ Create Application` button.
+- In the Create Application window, set a name for your application and select `Single Page Web Applications`. (Assuming the frontend app will be an SPA built on react/vue etc)
+- In the `settings` of the application, we will add appropriate (e.g: http://localhost:3000/callback) URLs as `Allowed Callback URLs` and `Allowed Web Origins`. We can also add domain specific URLs as well for the app to work. (e.g: https://myapp.com/callback).
+
+This would be the URL of the frontend app which you will deploy later. You can ignore this, for now. You can always come back later and add the necessary URLs.
+
+## Rules for Custom JWT Claims
+
+[Custom claims](https://auth0.com/docs/scopes/current/custom-claims) inside the JWT are used to tell Hasura about the role of the caller, so that Hasura may enforce the necessary authorization rules to decide what the caller can and cannot do. In the Auth0 dashboard, navigate to [Rules](https://manage.auth0.com/#/rules).
+
+Add the following rule to add our custom JWT claims under `hasura-jwt-claim`:
+
+```js
+function (user, context, callback) {
+  const namespace = "https://hasura.io/jwt/claims";
+  context.idToken[namespace] =
+    {
+      'x-hasura-default-role': 'user',
+      // do some custom logic to decide allowed roles
+      'x-hasura-allowed-roles': ['user'],
+      'x-hasura-user-id': user.user_id
+    };
+  callback(null, user, context);
+}
+```
+
+## Connect Hasura with Auth0
+
+In this part, you will learn how to connect Hasura with the Auth0 application that you just created in the previous step.
+
+We need to configure Hasura to use the Auth0 public keys. An easier way to generate the config for JWT is:
+
+- Click on the following link - [https://hasura.io/jwt-config](https://hasura.io/jwt-config)
+- For `Select Provider` choose `Auth0`
+- Enter `Auth0 Domain Name` (e.g. `demo-explore-hasura-basics.us.auth0.com`)
+- Click `Generate Config`
+
+The generated configuration can be used as the value for environment variable `HASURA_GRAPHQL_JWT_SECRET`.
+
+Since we have deployed Hasura GraphQL Engine on Heroku, let's head to Heroku dashboard to configure the admin secret and JWT secret.
+
+Open the "Settings" page for your Heroku app, add a new Config Var called `HASURA_GRAPHQL_JWT_SECRET`, and copy and paste the generate JWT configuration into the value box.
+
+Next, create a new Config Var called `HASURA_GRAPHQL_ADMIN_SECRET` and enter a secret key to protect the GraphQL endpoint. (Imagine this as the password to your GraphQL server).
+
+Great! Now your Hasura GraphQL Engine is secured using Auth0.
+
+## Sync Users with Rules
+
+Auth0 has rules that can be set up to be called on every login request. We need to set up a rule in Auth0 which allows the users of Auth0 to be in sync with the users in our database. The following code snippet allows us to do the same. Again using the Rules feature, create a new blank rule `upsert-user` and paste in the following code snippet:
+
+```js
+function (user, context, callback) {
+  const userId = user.user_id;
+  const nickname = user.nickname;
+
+  // Modify with your Hasura admin secret and URL to the application
+  const admin_secret = "demo";
+  const url = "https://rb-learn-hasura-back-end.herokuapp.com/v1/graphql";
+
+  request.post({
+      headers: {'content-type' : 'application/json', 'x-hasura-admin-secret': admin_secret},
+      url:   url,
+      body:    `{\"query\":\"mutation($userId: String!, $nickname: String) {\\n          insert_users(\\n            objects: [{ id: $userId, name: $nickname }]\\n            on_conflict: {\\n              constraint: users_pkey\\n              update_columns: [last_seen, name]\\n            }\\n          ) {\\n            affected_rows\\n          }\\n        }\",\"variables\":{\"userId\":\"${userId}\",\"nickname\":\"${nickname}\"}}`
+  }, function(error, response, body){
+       console.log(body);
+       callback(null, user, context);
+  });
+}
+```
+
+Note: Modify `x-hasura-admin-secret` and `url` parameters appropriately according to your app. Here we are making a simple request to make a mutation into users table.
+
+That’s it! This rule will now be triggered on every successful signup or login, and we insert or update the user data into our database using a Hasura GraphQL mutation.
+
+The above request performs a mutation on the users table with the id and name values.
+
+## Test with Auth0 Token
+
+Hasura is configured to be used with Auth0. Now let's test this setup by getting the token from Auth0 and making GraphQL queries with the Authorization headers to see if the permissions are applied.
+
+To get a JWT token for testing,
+
+Copy this URL - https://auth0-domain.auth0.com/login?client=client_id&protocol=oauth2&response_type=token%20id_token&redirect_uri=callback_uri&scope=openid%20profile and update the URL as given below:
+
+- Replace auth0-domain with the one we created in the previous steps.
+- Replace client_id with Auth0 application's client_id.
+- Replace callback_uri with http://localhost:3000/callback for testing. You don't need anything to run on localhost:3000 for this to work.
+- Make sure http://localhost:3000/callback has been added under Allowed Callback URLs in the Auth0 app settings.
+
+For my demo project, the URL will be updated to be https://demo-explore-hasura-basics.us.auth0.com/login?client=8fCQESPB57A48QvT0LM5edcaxbq7JrhE&protocol=oauth2&response_type=token%20id_token&redirect_uri=http://localhost:3000/callback&scope=openid%20profile
+
+Now try entering the updated URL in the browser. It should take you to the Auth0 login screen.
+
+After successfully logging in, you will be redirected to something like:
+
+http://localhost:3000/callback#access_token=CkxPdM_gMZz3ghILpVyRd4qCoJ_T1hIZ&scope=openid%20profile&expires_in=7200&token_type=Bearer&state=eBssl0ntJvATx98ha07BhZsBzcAkRSdp&id_token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Inh0Vl9kbE1HZ0VydVZxT2RjV3NFVSJ9.eyJodHRwczovL2hhc3VyYS5pby9qd3QvY2xhaW1zIjp7IngtaGFzdXJhLWRlZmF1bHQtcm9sZSI6InVzZXIiLCJ4LWhhc3VyYS1hbGxvd2VkLXJvbGVzIjpbInVzZXIiXSwieC1oYXN1cmEtdXNlci1pZCI6Imdvb2dsZS1vYXV0aDJ8MTE2MDU4NjY4MzAyMjkwODYxODEwIn0sImdpdmVuX25hbWUiOiJSb2IiLCJmYW1pbHlfbmFtZSI6IkJyZW5uYW4iLCJuaWNrbmFtZSI6InJvYiIsIm5hbWUiOiJSb2IgQnJlbm5hbiIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS0vQU9oMTRHakUwdUR2eTFMRWlVS3FQTWVvTzdjYXVWckJRMXl0VjQ3aUpGUWVvT1EiLCJnZW5kZXIiOiJtYWxlIiwibG9jYWxlIjoiZW4iLCJ1cGRhdGVkX2F0IjoiMjAyMC0wNi0xOVQyMzoyOTowOC42NjVaIiwiaXNzIjoiaHR0cHM6Ly9kZW1vLWV4cGxvcmUtaGFzdXJhLWJhc2ljcy51cy5hdXRoMC5jb20vIiwic3ViIjoiZ29vZ2xlLW9hdXRoMnwxMTYwNTg2NjgzMDIyOTA4NjE4MTAiLCJhdWQiOiI4ZkNRRVNQQjU3QTQ4UXZUMExNNWVkY2F4YnE3SnJoRSIsImlhdCI6MTU5MjYwOTM2MywiZXhwIjoxNTkyNjQ1MzYzLCJhdF9oYXNoIjoidWJwX0c4UUJqRmNXazkwaW9DZms0QSIsIm5vbmNlIjoibnpvQXNKYmhMd3ZsMF82dEpKWXBod0M5Y0JKTU4tWFEifQ.BhR2FViuZXufd7euZuuWsB8gKlJqNRAPckEWLh3a0biQZ7X57a3op4fQ5dKJtceBWhGFZRMeHBFtPue6ZZ--WZYKnW2pC7Rzr3A0jXa1pYFiXaDWJ6tTOzXpY2NWS3CjIGZzCeJhbmlhrRhkuSayBkylK2rHtmPcgal_dGbQng1vYGJKXi-qu89EzkEJgrebMaiBolnYBGI40orP4qjMYhrfrNLdG8X8RUDDSJGCQpeYWWAH8hvSV8SDAO5s3JkA2LgV7P1pF24X8FMeeejhO7z1jAO_vfV0Rog8r7v4PcwXCY0B5p7xEQqdSkseWwtCZriAxpTjuDZ76ExsmTAjgw
+
+This page will be a 404, unless you are running some other server on that port locally. We care only about the URL parameters.
+
+Extract the `id_token` value from this URL. This is the JWT:
+
+```js
+// Paste the JWT into the jwt.io debugger
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Inh0Vl9kbE1HZ0VydVZxT2RjV3NFVSJ9.eyJodHRwczovL2hhc3VyYS5pby9qd3QvY2xhaW1zIjp7IngtaGFzdXJhLWRlZmF1bHQtcm9sZSI6InVzZXIiLCJ4LWhhc3VyYS1hbGxvd2VkLXJvbGVzIjpbInVzZXIiXSwieC1oYXN1cmEtdXNlci1pZCI6Imdvb2dsZS1vYXV0aDJ8MTE2MDU4NjY4MzAyMjkwODYxODEwIn0sImdpdmVuX25hbWUiOiJSb2IiLCJmYW1pbHlfbmFtZSI6IkJyZW5uYW4iLCJuaWNrbmFtZSI6InJvYiIsIm5hbWUiOiJSb2IgQnJlbm5hbiIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS0vQU9oMTRHakUwdUR2eTFMRWlVS3FQTWVvTzdjYXVWckJRMXl0VjQ3aUpGUWVvT1EiLCJnZW5kZXIiOiJtYWxlIiwibG9jYWxlIjoiZW4iLCJ1cGRhdGVkX2F0IjoiMjAyMC0wNi0xOVQyMzoyOTowOC42NjVaIiwiaXNzIjoiaHR0cHM6Ly9kZW1vLWV4cGxvcmUtaGFzdXJhLWJhc2ljcy51cy5hdXRoMC5jb20vIiwic3ViIjoiZ29vZ2xlLW9hdXRoMnwxMTYwNTg2NjgzMDIyOTA4NjE4MTAiLCJhdWQiOiI4ZkNRRVNQQjU3QTQ4UXZUMExNNWVkY2F4YnE3SnJoRSIsImlhdCI6MTU5MjYwOTM2MywiZXhwIjoxNTkyNjQ1MzYzLCJhdF9oYXNoIjoidWJwX0c4UUJqRmNXazkwaW9DZms0QSIsIm5vbmNlIjoibnpvQXNKYmhMd3ZsMF82dEpKWXBod0M5Y0JKTU4tWFEifQ.BhR2FViuZXufd7euZuuWsB8gKlJqNRAPckEWLh3a0biQZ7X57a3op4fQ5dKJtceBWhGFZRMeHBFtPue6ZZ--WZYKnW2pC7Rzr3A0jXa1pYFiXaDWJ6tTOzXpY2NWS3CjIGZzCeJhbmlhrRhkuSayBkylK2rHtmPcgal_dGbQng1vYGJKXi-qu89EzkEJgrebMaiBolnYBGI40orP4qjMYhrfrNLdG8X8RUDDSJGCQpeYWWAH8hvSV8SDAO5s3JkA2LgV7P1pF24X8FMeeejhO7z1jAO_vfV0Rog8r7v4PcwXCY0B5p7xEQqdSkseWwtCZriAxpTjuDZ76ExsmTAjgw
+```
+
+Test this JWT in [jwt.io](https://jwt.io/) debugger.
+
+The debugger should give you the decoded payload that contains the JWT claims that have been configured for Hasura under the key `https://hasura.io/jwt/claims`. Inside this object, the role information will be available under `x-hasura-default-role` and `x-hasura-allowed-roles` keys; user-id information will be available under `x-hasura-user-id` key.
+
+```js
+// Decoded - Header (Algorithm and Token Type)
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "xtV_dlMGgEruVqOdcWsEU"
+}
+
+// Decoded - Payload
+{
+  "https://hasura.io/jwt/claims": {
+    "x-hasura-default-role": "user",
+    "x-hasura-allowed-roles": [
+      "user"
+    ],
+    "x-hasura-user-id": "google-oauth2|116058668302290861810"
+  },
+  "given_name": "Rob",
+  "family_name": "Brennan",
+  "nickname": "rob",
+  "name": "Rob Brennan",
+  "picture": "https://lh3.googleusercontent.com/a-/AOh14GjE0uDvy1LEiUKqPMeoO7cauVrBQ1ytV47iJFQeoOQ",
+  "gender": "male",
+  "locale": "en",
+  "updated_at": "2020-06-19T23:29:08.665Z",
+  "iss": "https://demo-explore-hasura-basics.us.auth0.com/",
+  "sub": "google-oauth2|116058668302290861810",
+  "aud": "8fCQESPB57A48QvT0LM5edcaxbq7JrhE",
+  "iat": 1592609363,
+  "exp": 1592645363,
+  "at_hash": "ubp_G8QBjFcWk90ioCfk4A",
+  "nonce": "nzoAsJbhLwvl0_6tJJYphwC9cBJMN-XQ"
+}
+```
+
+# Custom Business Logic
+
+## Creating Actions
+
+## Write custom resolvers
+
+## Add Remote Schema
+
+## Write event webhook
+
+## Create event trigger
+
+# What's next?
