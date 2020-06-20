@@ -552,14 +552,394 @@ The debugger should give you the decoded payload that contains the JWT claims th
 
 # Custom Business Logic
 
+Hasura gives you CRUD + realtime GraphQL APIs with authorization & access control. However, there are cases where you would want to add custom/business logic in your app. For example, in the todo app that we are building, before inserting todos into the public feed we want to validate the text for profanity.
+
+Custom business logic can be handled in a few flexible ways in Hasura:
+
+- Actions
+- Remote Schemas
+- Event Triggers
+
+Actions are a way to extend Hasura’s schema with custom business logic using custom queries and mutations. Actions can be added to Hasura to handle various use cases such as `data validation`, `data enrichment from external sources` and any other `complex business logic`.
+
+![https://hasura.io/docs/1.0/_images/actions-arch1.png](https://hasura.io/docs/1.0/_images/actions-arch1.png)
+
+Actions can be either a Query or a Mutation.
+
+- `Query Action` - If you are querying some `data from an external API` or doing some `validations / transformations` before sending back the data, you can use a Query Action.
+- `Mutation Action` - If you want to perform data validations or do some custom logic before manipulating the database, you can use a Mutation Action.
+
+Remote schemas - Hasura has the ability to merge remote GraphQL schemas and provide a unified GraphQL API. Think of it like automated schema stitching. This way, we can write custom GraphQL resolvers and add it as a remote schema.
+
+![https://hasura.io/docs/1.0/_images/remote-schemas-arch1.png](https://hasura.io/docs/1.0/_images/remote-schemas-arch1.png)
+
+If you are choosing between `Actions` and `Remote Schemas`, here's something to keep in mind:
+
+- Use `Remote Schemas` if you have a GraphQL server or if you're comfortable building one yourself.
+- Use `Actions` if you need to call a REST API
+
+Event Triggers - Hasura can be used to create event triggers on tables in the Postgres database. Event triggers reliably capture events on specified tables and invoke webhooks to carry out any custom logic. After a mutation operation, triggers can call a webhook asynchronously.
+
+**Use case for the todo app**
+
+In the todo app backend that you have built, there are certain custom functionalities you may want to add:
+
+If you want to fetch profile information from Auth0, you need to make an API call to Auth0 with the token. Auth0 only exposes a REST API and not GraphQL. This API has to be exposed to the GraphQL client.
+
+We will add an Action in Hasura to extend the API. We will also see how the same thing can be done with a custom GraphQL server added as a Remote Schema.
+
+Get notified via email whenever a new user registers in your app. This is an asynchronous operation that can be invoked via Event trigger webhook.
+
+We will see how these 2 use-cases can be handled in Hasura.
+
 ## Creating Actions
+
+Let's take the first use-case of fetching profile information from Auth0.
+
+Ideally you would want to maintain a single GraphQL endpoint for all your data requirements.
+
+To handle the use-case of fetching Auth0 profile information, we will write a REST API in a custom Node.js server. This could be written in any language/framework, but we are sticking to Node.js for this example.
+
+Hasura can then merge this REST API with the existing auto-generated GraphQL schema and the client will be able to query everything using the single GraphQL endpoint.
+
+### Creating an action
+
+On the Hasura Console, head to the `Actions` tab and Click on `Create` to create a new action.
+
+#### Action definition
+
+We will need to define our Action and the type of action. Since we are just reading data from an API, we will use the Query type for this Action. The definition will have the name of the action (auth0 in this case), input arguments (none in this case) and the response type of the action (auth0_profile in this case):
+
+```
+type Query {
+  auth0 : auth0_profile
+}
+```
+
+#### Types definition
+
+We defined that the response type of the action is `auth0_profile`. So what do we want in return from the Auth0 API? We want the `id`, `email` and `picture` fields which aren't stored on our database so far:
+
+```
+type auth0_profile {
+  id : String
+  email : String
+  picture : String
+}
+```
+
+All three fields are of type `String`. Note that `auth0_profile` is an object type which has 3 keys (`id`, `email` and `picture`) and we are returning this object in our response.
+
+We will change the `Handler URL` later once we write our REST API and deploy it on a public endpoint.
+
+Be sure to check `Forward client headers to webhook`
+
+Click on `Create` once you are done configuring the above fields.
+
+### Write a REST API
+
+Now that the Action has been created, let's write a REST API in a simple Node.js Express app that can later be configured for this Action.
+
+Head to the `Codegen` tab to quickly get started with boilerplate code :)
+
+Click on `Try on Glitch` to deploy a server. Glitch is a platform to build and deploy apps (Node.js) and is a quick way to test and iterate code on the cloud.
+
+Now replace the contents of src/server.js with the following:
+
+```js
+const express = require("express");
+const bodyParser = require("body-parser");
+const fetch = require("node-fetch");
+const app = express();
+const PORT = process.env.PORT || 3000;
+app.use(bodyParser.json());
+const getProfileInfo = (user_id) => {
+  const headers = {
+    Authorization: "Bearer " + process.env.AUTH0_MANAGEMENT_API_TOKEN,
+  };
+  console.log(headers);
+  return fetch(
+    "https://" + process.env.AUTH0_DOMAIN + "/api/v2/users/" + user_id,
+    { headers: headers }
+  ).then((response) => response.json());
+};
+app.post("/auth0", async (req, res) => {
+  // get request input
+  const { session_variables } = req.body;
+
+  const user_id = session_variables["x-hasura-user-id"];
+  // make a rest api call to auth0
+  return getProfileInfo(user_id).then(function (resp) {
+    console.log(resp);
+    if (!resp) {
+      return res.status(400).json({
+        message: "error happened",
+      });
+    }
+    return res.json({
+      email: resp.email,
+      picture: resp.picture,
+    });
+  });
+});
+app.listen(PORT);
+```
+
+In the server above, let's break down what's happening:
+
+- We receive the payload `session_variables` as the request body from the Action.
+- We make a request to the [Auth0's Management API](https://auth0.com/docs/api/management/v2/create-m2m-app), passing in the `user_id` to get details about this user.
+- Once we get a response from the Auth0 API in our server, we form the following object `{email: resp.email, picture: resp.picture}` and send it back to the client. Else, we return an error case.
+- In case you are stuck with the code above, use the following [readymade server](https://glitch.com/~auth0-hasura-action) on Glitch to clone it. You also need to remix the Glitch project to start modifying any code.
+
+In your Glitch app source code, modify the .env file to enter the following values:
+
+- AUTH0_MANAGEMENT_API_TOKEN
+- AUTH0_DOMAIN
+
+The `AUTH0_MANAGEMENT_API_TOKEN` can be obtained from the Auth0 project:
+
+![https://storage.googleapis.com/graphql-engine-cdn.hasura.io/learn-hasura/assets/graphql-hasura/auth0-management-api.png](https://storage.googleapis.com/graphql-engine-cdn.hasura.io/learn-hasura/assets/graphql-hasura/auth0-management-api.png)
+
+Congrats! You have written and deployed your first Hasura Action to extend the Graph.
+
+### Permission
+
+Now to query the newly added type, we need to give Permissions to the `user` role for this query type. Head to the `Permissions` tab of the newly created Action and configure access for the role user.
+
+Alright, now how do we query this newly added API?
+
+First, we need to update the webhook url for the Action. Copy the deployed app URL from Glitch and add that as the webhook handler. Don't forget to add the route `/auth0` along with the Glitch app URL.
+
+Now head to GraphiQL and try out the following query:
+
+```gql
+query {
+  auth0 {
+    email
+    picture
+  }
+}
+```
+
+Remember the JWT token that we got after configuring Auth0 and testing it out? Here you also need to pass in the `Authorization` header with the same JWT token to get the right data.
+
+Note: You need to pass in the right header values. You can pass in the Authorization header with the correct token and your Node.js server will receive the appropriate `x-hasura-user-id` value from the session variables for the API to work as expected.
+
+That's it! You have now extended the built-in GraphQL API with your own custom code.
 
 ## Write custom resolvers
 
+Now we saw how the GraphQL API can be extended using Actions. We mentioned earlier that another way of customising the API graph is through a custom GraphQL server.
+
+Let's take the same use-case of fetching profile information from Auth0.
+
+Hasura has the ability to merge remote GraphQL schemas and provide a unified GraphQL API. To handle the use-case of fetching Auth0 profile information, we will write custom resolvers in a custom GraphQL server. Hasura can then merge this custom GraphQL server with the existing auto-generated schema.
+
+This custom GraphQL server is the `Remote Schema`.
+
+### Write GraphQL custom resolver
+
+So let's write a custom resolver which can be later merged into Hasura's GraphQL API:
+
+```js
+const { ApolloServer } = require("apollo-server");
+const gql = require("graphql-tag");
+const jwt = require("jsonwebtoken");
+const fetch = require("node-fetch");
+const typeDefs = gql`
+  type auth0_profile {
+    email: String
+    picture: String
+  }
+  type Query {
+    auth0: auth0_profile
+  }
+`;
+function getProfileInfo(user_id) {
+  const headers = {
+    Authorization: "Bearer " + process.env.AUTH0_MANAGEMENT_API_TOKEN,
+  };
+  console.log(headers);
+  return fetch(
+    "https://" + process.env.AUTH0_DOMAIN + "/api/v2/users/" + user_id,
+    { headers: headers }
+  ).then((response) => response.json());
+}
+const resolvers = {
+  Query: {
+    auth0: (parent, args, context) => {
+      // read the authorization header sent from the client
+      const authHeaders = context.headers.authorization || "";
+      const token = authHeaders.replace("Bearer ", "");
+      // decode the token to find the user_id
+      try {
+        if (!token) {
+          return "Authorization token is missing!";
+        }
+        const decoded = jwt.decode(token);
+        const user_id = decoded.sub;
+        // make a rest api call to auth0
+        return getProfileInfo(user_id).then(function (resp) {
+          console.log(resp);
+          if (!resp) {
+            return null;
+          }
+          return { email: resp.email, picture: resp.picture };
+        });
+      } catch (e) {
+        console.log(e);
+        return null;
+      }
+    },
+  },
+};
+const context = ({ req }) => {
+  return { headers: req.headers };
+};
+const schema = new ApolloServer({ typeDefs, resolvers, context });
+schema.listen({ port: process.env.PORT }).then(({ url }) => {
+  console.log(`schema ready at ${url}`);
+});
+```
+
+In the server above, let's breakdown what's happening:
+
+- We define the GraphQL types for auth0_profile and Query.
+- And then we write a custom resolver for Query type auth0, where we parse the Authorization headers to get the token.
+- We then decode the token using the jsonwebtoken library's jwt method. This gives the user_id required to fetch auth0 profile information.
+- We make a request to the Auth0's Management API, passing in the token and the user_id to get details about this user.
+- Once we get a response, we return back the object {email: resp.email, picture: resp.picture} as response. Else, we return null.
+
+Note Most of the code written is very similar to the REST API code we wrote in the previous section for Actions. Here we are using Apollo Server to write a custom GraphQL server from scratch.
+
+Deploy this code to an external host (perhaps Vercel, etc).
+
+Congrats! You have written and deployed your first GraphQL custom resolver.
+
 ## Add Remote Schema
+
+We have written the custom resolver and deployed it. We have the GraphQL endpoint ready. Let's add it to Hasura as a remote schema.
+
+### Add
+
+Head to the `Remote Schemas` tab of the console and click on the `Add` button.
+
+Give a name for the remote schema (let's say auth0). Under GraphQL Server URL, enter the glitch app url that you just deployed in the previous step.
+
+Select `Forward all headers from the client` and click on `Add Remote Schema`.
+
+Head to Console GraphiQL tab and explore the following GraphQL query:
+
+```gql
+query {
+  auth0 {
+    email
+    picture
+  }
+}
+```
+
+Remember the JWT token that we got after configuring Auth0 and testing it out? Here you also need to pass in the Authorization header with the same JWT token to get the right data.
+
+As you can see, Hasura has merged the custom GraphQL schema with the already existing auto-generated APIs over Postgres.
 
 ## Write event webhook
 
+Now let's move to the second use-case of sending an email when a user registers on the app.
+
+When the user registers on the app using Auth0, we insert a new row into the `users` table to keep the user data in sync. Remember the Auth0 rule we wrote during signup to make a mutation?
+
+This is an `insert` operation on table `users`. The payload for each event is mentioned [here](https://hasura.io/docs/1.0/graphql/manual/event-triggers/payload.html#json-payload)
+
+Now we are going to capture this insert operation to trigger our event.
+
+### SendGrid SMTP Email API
+
+For this example, we are going to make use of `SendGrid`'s SMTP server and use `nodemailer` to send the email.
+
+Signup on [SendGrid](https://sendgrid.com/) and create a free account.
+
+Create an API Key by following the docs [here](https://sendgrid.com/docs/for-developers/sending-email/integrating-with-the-smtp-api/)
+
+#### Write the webhook
+
+```js
+const nodemailer = require("nodemailer");
+const transporter = nodemailer.createTransport(
+  "smtp://" +
+    process.env.SMTP_LOGIN +
+    ":" +
+    process.env.SMTP_PASSWORD +
+    "@" +
+    process.env.SMTP_HOST
+);
+const fs = require("fs");
+const path = require("path");
+const express = require("express");
+const bodyParser = require("body-parser");
+const app = express();
+app.set("port", process.env.PORT || 3000);
+app.use("/", express.static(path.join(__dirname, "public")));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(function (req, res, next) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Cache-Control", "no-cache");
+  next();
+});
+app.post("/send-email", function (req, res) {
+  const name = req.body.event.data.new.name;
+  // setup e-mail data
+  const mailOptions = {
+    from: process.env.SENDER_ADDRESS, // sender address
+    to: process.env.RECEIVER_ADDRESS, // list of receivers
+    subject: "A new user has registered", // Subject line
+    text:
+      "Hi, This is to notify that a new user has registered under the name of " +
+      name, // plaintext body
+    html:
+      "<p>" +
+      "Hi, This is to notify that a new user has registered under the name of " +
+      name +
+      "</p>", // html body
+  };
+  // send mail with defined transport object
+  transporter.sendMail(mailOptions, function (error, info) {
+    if (error) {
+      return console.log(error);
+    }
+    console.log("Message sent: " + info.response);
+    res.json({ success: true });
+  });
+});
+app.listen(app.get("port"), function () {
+  console.log("Server started on: " + app.get("port"));
+});
+```
+
+Congrats! Once you have deployed this code, you will have written and deployed your first webhook to handle database events.
+
 ## Create event trigger
+
+Event triggers can be created using the Hasura console.
+
+### Add Event Trigger
+
+Open the Hasura console, head to the Events tab and click on the Create trigger button to open up the interface below to create an event trigger:
+
+Give a name for the event trigger (say `send_email`) and select the table `users` and select the operation `insert`.
+
+Click on `Create`.
+
+### Try it out
+
+To test this, we need to insert a new row into users table.
+
+Head to Console -> Data -> users -> Insert Row and insert a new row.
+
+Now head to Events tab and click on `send_email` event to browse the processed events.
+
+Now everytime a new row is inserted into users table this event would be invoked.
 
 # What's next?
