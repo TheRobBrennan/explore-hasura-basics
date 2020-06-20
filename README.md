@@ -922,4 +922,24 @@ Congrats! Once you have deployed this code, you will have written and deployed y
 
 ## Create event trigger
 
+Event triggers can be created using the Hasura console.
+
+### Add Event Trigger
+
+Open the Hasura console, head to the Events tab and click on the Create trigger button to open up the interface below to create an event trigger:
+
+Give a name for the event trigger (say `send_email`) and select the table `users` and select the operation `insert`.
+
+Click on `Create`.
+
+### Try it out
+
+To test this, we need to insert a new row into users table.
+
+Head to Console -> Data -> users -> Insert Row and insert a new row.
+
+Now head to Events tab and click on `send_email` event to browse the processed events.
+
+Now everytime a new row is inserted into users table this event would be invoked.
+
 # What's next?
