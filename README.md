@@ -941,5 +941,3 @@ Head to Console -> Data -> users -> Insert Row and insert a new row.
 Now head to Events tab and click on `send_email` event to browse the processed events.
 
 Now everytime a new row is inserted into users table this event would be invoked.
-
-# What's next?
