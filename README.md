@@ -819,6 +819,31 @@ Congrats! You have written and deployed your first GraphQL custom resolver.
 
 ## Add Remote Schema
 
+We have written the custom resolver and deployed it. We have the GraphQL endpoint ready. Let's add it to Hasura as a remote schema.
+
+### Add
+
+Head to the `Remote Schemas` tab of the console and click on the `Add` button.
+
+Give a name for the remote schema (let's say auth0). Under GraphQL Server URL, enter the glitch app url that you just deployed in the previous step.
+
+Select `Forward all headers from the client` and click on `Add Remote Schema`.
+
+Head to Console GraphiQL tab and explore the following GraphQL query:
+
+```gql
+query {
+  auth0 {
+    email
+    picture
+  }
+}
+```
+
+Remember the JWT token that we got after configuring Auth0 and testing it out? Here you also need to pass in the Authorization header with the same JWT token to get the right data.
+
+As you can see, Hasura has merged the custom GraphQL schema with the already existing auto-generated APIs over Postgres.
+
 ## Write event webhook
 
 ## Create event trigger
